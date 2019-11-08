@@ -4,9 +4,11 @@
 ## 依赖  
 * python版本：≥ python3.5 
 * python依赖：
+
 ``` shell
     pip3 install tornado requests pymysql -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
+
 * MySQL
 
 ## 文件说明：
@@ -19,4 +21,4 @@
 ```
 
 ## 服务对外默认端口
-port: 8041  
+port: 8041
