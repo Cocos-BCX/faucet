@@ -37,7 +37,7 @@ class FaucetHandler(tornado.web.RequestHandler):
 
     def post(self):
         auth = self.request.headers.get('authorization', '') #验证权限
-        # print("auth", auth)
+        print("auth", auth)
         if auth not in auth_list.values():
             return self.write({'msg': 'no access authority!', 'code': '400'})
         else:
@@ -61,10 +61,12 @@ class FaucetHandler(tornado.web.RequestHandler):
             body_relay = {
                 "jsonrpc": "2.0",
                 "method": "register_account",
-                "params": [name, owner_key, active_key, register, referrer, 50, "true"],
+                #"params": [name, owner_key, active_key, register, referrer, 50, "true"],
+                "params": [name, owner_key, active_key, register, "true"],
                 "id":1
             }
             info = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
+            print('[cli_wallet] register_account, body: {}, result: {}'.format(body_relay, info))
             if "error" in info:
                 error = info["error"]["message"]
                 return self.write({'msg': error, 'code': '400'})
