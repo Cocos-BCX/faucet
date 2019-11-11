@@ -37,7 +37,7 @@ class FaucetHandler(tornado.web.RequestHandler):
 
     def post(self):
         auth = self.request.headers.get('authorization', '') #验证权限
-        print("auth", auth)
+        #print("auth", auth)
         if auth not in auth_list.values():
             return self.write({'msg': 'no access authority!', 'code': '400'})
         else:
@@ -47,7 +47,7 @@ class FaucetHandler(tornado.web.RequestHandler):
         name = account.get('name', '') #获取帐户名
         active_key = account.get('active_key', '') #获取active公钥
         owner_key = account.get('owner_key', '')   #获取owner公钥
-        referrer = account.get('referrer', '') #获取推荐人
+        #referrer = account.get('referrer', '') #获取推荐人
         register = registrar
         if not name:
             return self.write({'msg': 'no name!', 'code': '400'})
@@ -55,8 +55,8 @@ class FaucetHandler(tornado.web.RequestHandler):
             return self.write({'msg': 'no active key!', 'code': '400'})
         if not owner_key:
             owner_key = active_key  #如果没有owner_key默认值为active_key
-        if not referrer:
-            referrer = register   #如果没有推荐人，则默认为官方帐户
+        #if not referrer:
+        #    referrer = register   #如果没有推荐人，则默认为官方帐户
         try:    #注册帐户
             body_relay = {
                 "jsonrpc": "2.0",
@@ -66,7 +66,7 @@ class FaucetHandler(tornado.web.RequestHandler):
                 "id":1
             }
             info = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
-            print('[cli_wallet] register_account, body: {}, result: {}'.format(body_relay, info))
+            #print('[cli_wallet] register_account, body: {}, result: {}'.format(body_relay, info))
             if "error" in info:
                 error = info["error"]["message"]
                 return self.write({'msg': error, 'code': '400'})
