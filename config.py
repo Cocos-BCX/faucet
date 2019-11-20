@@ -22,20 +22,30 @@ db = {
     'password': '123456',
     'charset': 'utf8',
     'db': 'cocosbcx'
+}
 
+tables = { 
+    'users': 'cocosUsers'
 }
 
 #数据库操作相关语句
 sql = {
-    'createTable': 'create table cocosUsers(id char(10), name varchar(32), pubkey char(128), create_time char(32))default charset=utf8',
-    'insertData': "insert into cocosUsers(id,name,pubkey,create_time) values('{}','{}','{}','{}')"
+    'createTable': 'create table ' + tables['users'] + ' (id char(10), name varchar(32), pubkey char(128), create_time char(32))default charset=utf8',
+    'insertData': "insert into " + tables['users'] + " (id,name,pubkey,create_time) values('{}','{}','{}','{}')",
+    'count': "select * from " + tables['users'] + " where DATE_FORMAT(create_time, '%Y-%m-%d') between '{}' and '{}'"
 }
 
 #发送奖励数量
-reward = 100000
+reward_core = 20
+reward_gas = 2000000
 
 #核心资产
 asset_core = 'COCOS'
+asset_core_precision = 100000
 
 #注册完成欢迎信息
 memo = 'Welcome To COCOS Community!'
+
+#每天创建账户最大数
+has_account_max_limit = True
+registrar_account_max = 3000
