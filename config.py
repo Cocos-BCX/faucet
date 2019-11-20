@@ -6,13 +6,13 @@ auth_list = {
 }
 
 #命令行钱包地址
-cli_wallet_url = "http://0.0.0.0:8048"
+cli_wallet_url = "http://127.0.0.1:8048"
 
 #请求头
 headers = {"content-type": "application/json"}
 
 #注册帐户的注册人
-registrar = "nicotest"
+register = "nicotest"
 
 #mysql数据库相关参数
 db = {
@@ -25,7 +25,7 @@ db = {
 }
 
 tables = { 
-    'users': 'cocosUsers'
+    'users': 'cocosUsers_test'
 }
 
 #数据库操作相关语句
@@ -36,8 +36,8 @@ sql = {
 }
 
 #发送奖励数量
-reward_core = 20
-reward_gas = 2000000
+reward_core = 10
+reward_gas = 1000000
 
 #核心资产
 asset_core = 'COCOS'
