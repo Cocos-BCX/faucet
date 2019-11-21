@@ -122,9 +122,9 @@ def get_account_asset_balance(account, asset_id='1.3.0'):
             #print('asset_balance: {}, type: {}, amount: {}'.format(asset_balance, type(asset_balance['amount']), asset_balance['amount']))
             if asset_balance['asset_id'] == asset_id:
                 return int(asset_balance['amount'])
-        return 0
     except Exception as e:
         print(repr(e))
+    return 0
 
 def params_valid(account):
     name = account.get('name', '') #获取帐户名
@@ -180,30 +180,6 @@ def send_reward(core_count, account_to):
         else:
             push_message('register {} no enough {} for collateral gas'.format(register, asset_core))
     return True, ''
-
-def check_max_create_and_ip_max_create():
-        my_db = pymysql.connect(**db)
-        cursor = my_db.cursor()
-
-        today = datetime.datetime.utcnow().strftime('%Y-%m-%d')
-        try:
-            count = cursor.execute(sql['count'].format(today, today))
-            if count % 20 == 0:
-                print('{} create count {}'.format(today, count))
-            if has_account_max_limit and count > registrar_account_max:
-                my_db.close()
-                return self.write({"msg": "Up to the maximum number of accounts created today", "code": 400})   
-            
-            #ip max register check
-            today_ip_count = cursor.execute(sql['ip_count'].format(remote_ip, today))
-            if has_ip_max_limit and today_ip_count > ip_max_register_limit:
-                my_db.close()
-                print('{} address no access'.format(remote_ip))
-                return self.write({"msg": "Your address no access authority", "code": 400})             
-        except Exception as e:
-            my_db.close()
-            print(repr(e))
-            self.write({"msg": "db error", "code": 400})
 
 #注册帐户
 def register_account(account):
