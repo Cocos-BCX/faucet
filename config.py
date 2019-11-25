@@ -6,7 +6,8 @@ auth_list = {
 }
 
 #命令行钱包地址
-cli_wallet_url = "http://127.0.0.1:8047"
+#cli_wallet_url = "http://127.0.0.1:8047"
+cli_wallet_url = "http://172.17.25.154:8048"
 
 #请求头
 headers = {"content-type": "application/json"}
@@ -15,11 +16,11 @@ headers = {"content-type": "application/json"}
 register = "nicotest"
 
 #mysql数据库相关参数
-db = {
-    'host': '127.0.0.1',
+db = { 
+    'host': '172.17.25.150',
     'port': 3306,
-    'user': 'root',
-    'password': '123456',
+    'user': 'faucet',
+    'password': 'iyeQSG0j',
     'charset': 'utf8',
     'db': 'cocosbcx'
 }
@@ -67,4 +68,3 @@ ip_limit_list = set()
 
 # dingding
 faucet_alert_address = "https://oapi.dingtalk.com/robot/send?access_token=e9ccd60b531c8d12ea9fd984ebc2a53e770237e347c25cd1ef4d72c8ec0a5275"
-
