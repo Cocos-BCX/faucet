@@ -26,7 +26,7 @@ db = {
 }
 
 tables = { 
-    'users': 'cocosUsers_test'
+    'users': 'cocosUsers'
 }
 
 #数据库操作相关语句
