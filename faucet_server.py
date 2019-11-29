@@ -152,7 +152,7 @@ def send_reward(core_count, account_to):
                 body_relay = {
                     "jsonrpc": "2.0",
                     "method": "transfer",
-                    "params": [register, account_to, reward_core, asset_core, memo, "true"],
+                    "params": [register, account_to, reward_core, asset_core, [memo, "false"], "true"],
                     "id":1
                 }
                 requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers)
