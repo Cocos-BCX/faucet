@@ -46,8 +46,8 @@ asset_gas = 'GAS'
 gas_core_exchange_rate = 1
 
 #发送奖励数量
-reward_core = 10
-reward_core_until_N = 100
+reward_core = 0.1
+reward_core_until_N = 1000
 transfer_operation_N = 2
 reward_gas = reward_core * (10 ** asset_core_precision) * gas_core_exchange_rate * transfer_operation_N
 
@@ -56,11 +56,11 @@ memo = 'Welcome To COCOS Community!'
 
 #每天创建账户最大数
 has_account_max_limit = True
-registrar_account_max = 3000
+registrar_account_max = 10000
 
 # ip 限制(每天)
 has_ip_max_limit = True 
-ip_max_register_limit = 500
+ip_max_register_limit = 20
 
 #ip 黑名单
 ip_limit_list = set()
