@@ -197,7 +197,7 @@ def register_account(account):
     except Exception as e:
         print(repr(e))
         push_message("register account {} failed".format(account['name']))
-        return False, {'msg': '未知错误!', 'code': '400'}, ''
+        return False, {'msg': 'register account failed', 'code': '400'}, ''
     try:
         body_relay = {
             "jsonrpc": "2.0",
@@ -291,7 +291,7 @@ class FaucetHandler(tornado.web.RequestHandler):
         #register account
         status, msg, userid = register_account(account_data)
         if not status:
-            print('[ERROR] {}'.format(msg))
+            #print('[ERROR] {}'.format(msg))
             return self.write(msg)
 
         # send reward
