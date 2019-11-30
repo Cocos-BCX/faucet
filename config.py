@@ -6,7 +6,7 @@ auth_list = {
 }
 
 #命令行钱包地址
-#cli_wallet_url = "http://127.0.0.1:8047"
+cli_wallet_url = "http://127.0.0.1:8048"
 cli_wallet_url = "http://172.17.25.154:8048"
 
 #请求头
@@ -15,7 +15,7 @@ headers = {"content-type": "application/json"}
 #注册帐户的注册人
 # faucet1 1.2.18 faucet2 1.2.19 faucet3 1.2.20 faucet4 1.2.21
 register = "faucet1"
-register_id = 1.2.18 
+register_id = "1.2.18" 
 
 #mysql数据库相关参数
 db = { 

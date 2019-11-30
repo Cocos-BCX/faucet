@@ -162,7 +162,7 @@ def send_reward(core_count, account_id):
                 body_relay = {
                     "jsonrpc": "2.0",
                     "method": "transfer",
-                    "params": [register_id, account_id, reward_core, asset_core, [memo, "false"], "true"],
+                    "params": [register_id, account_id, "%.5f"%(reward_core), asset_core, [memo, "false"], "true"],
                     "id":1
                 }
                 requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers)
@@ -180,7 +180,7 @@ def send_reward(core_count, account_id):
                 body_relay = {
                     "jsonrpc": "2.0",
                     "method": "update_collateral_for_gas",
-                    "params": [register, account_to, reward_gas, "true"],
+                    "params": [register_id, account_id, int(reward_gas), "true"],
                     "id":1
                 }
                 requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers)
