@@ -54,6 +54,16 @@ def init_reward():
             #reward_core = int(transfer[1]['fee']/(10**asset_core_precision) * transfer_operation_N)
             reward_gas = transfer[1]['fee'] * gas_core_exchange_rate * transfer_operation_N
             print('[initalize] gas_core_exchange_rate: {}, reward_gas: {}, reward_core: {}, transfer fee: {}'.format(gas_core_exchange_rate, reward_gas, reward_core, transfer))
+
+            # init register account_id
+            body_relay = {
+                "jsonrpc": "2.0",
+                "method": "get_account",
+                "params": [register],
+                "id":1
+            }
+            account_info = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
+            register_id = account_info["result"]["id"]
     except Exception as e:
         print('[ERROR][init reward] {}'.format(repr(e)))
         push_message("faucet_server init reward error")
@@ -141,7 +151,7 @@ def params_valid(account):
         owner_key = active_key  #如果没有owner_key默认值为active_key
     return True, '', {'name': name, 'active_key': active_key, 'owner_key': owner_key}
 
-def send_reward(core_count, account_to):
+def send_reward(core_count, account_id):
     is_return = False
     core_amount = get_account_asset_balance(register)
 
@@ -152,7 +162,7 @@ def send_reward(core_count, account_to):
                 body_relay = {
                     "jsonrpc": "2.0",
                     "method": "transfer",
-                    "params": [register, account_to, reward_core, asset_core, [memo, "false"], "true"],
+                    "params": [register_id, account_id, reward_core, asset_core, [memo, "false"], "true"],
                     "id":1
                 }
                 requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers)
@@ -295,7 +305,7 @@ class FaucetHandler(tornado.web.RequestHandler):
             return self.write(msg)
 
         # send reward
-        status, msg = send_reward(account_count, account_data['name'])
+        status, msg = send_reward(account_count, userid)
         if not status:
             print('[ERROR] {}'.format(msg))
             return self.write(msg)
