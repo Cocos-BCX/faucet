@@ -6,6 +6,7 @@ import random
 import pymysql
 import requests
 import datetime
+import socket
 
 import tornado.ioloop
 import tornado.web
@@ -18,6 +19,12 @@ from config import *
 define('port', default=8041, type=int)
 
 def init_reward():
+    global asset_core_precision
+    global core_exchange_rate
+    global reward_gas
+    global gas_core_exchange_rate
+    global register_id
+
     try:
         #get_global_properties --> transfer_fee
         body_relay = {
@@ -79,8 +86,16 @@ def init_db():
         my_db.rollback()
     my_db.close()
 
+def init_host_info():
+    global g_hostname
+    global g_ip
+    g_hostname = socket.getfqdn(socket.gethostname(  ))
+    g_ip = socket.gethostbyname(g_hostname)
+    print('[init_host_info] hostname: {}, ip: {}'.format(g_hostname, g_ip))
+
 #服务启动初始化
 def initalize():
+    init_host_info()
     init_db()
     init_reward()
     print('[initalize] ip_limit_list: {}'.format(ip_limit_list))
@@ -102,13 +117,14 @@ def is_cheap_name(name):
         return True
     return False
 
-def push_message(message, keys='[faucet]'):
+def push_message(message, labels=['faucet']):
+    content = "[{}]{} {}({}), {}".format(env, str(labels), g_hostname, g_ip, message)
     try:
         body_relay = {
             "jsonrpc": "2.0",
             "msgtype": "text",
             "text": {
-                "content": keys + message
+                "content": content
             },
             "id":1
         }
