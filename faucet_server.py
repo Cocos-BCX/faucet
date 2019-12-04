@@ -6,6 +6,7 @@ import random
 import pymysql
 import requests
 import datetime
+import socket
 
 import tornado.ioloop
 import tornado.web
@@ -13,11 +14,20 @@ import tornado.httpserver
 
 from tornado.options import define, options, parse_command_line
 from config import *
+from utils import *
+
+logger = Logging().getLogger()
 
 # 定义默认端口
 define('port', default=8041, type=int)
 
 def init_reward():
+    global asset_core_precision
+    global core_exchange_rate
+    global reward_gas
+    global gas_core_exchange_rate
+    global register_id
+
     try:
         #get_global_properties --> transfer_fee
         body_relay = {
@@ -37,7 +47,7 @@ def init_reward():
                 "id":1
             }
             asset = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)['result']
-            print('[initalize] core asset: {}'.format(asset))
+            logger.info('core asset: {}'.format(asset))
             asset_core_precision = asset['precision']
 
             #get_asset GAS --> core_exchange_rate
@@ -48,15 +58,26 @@ def init_reward():
                 "id":1
             }
             asset = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)['result']
-            print('[initalize] gas asset: {}'.format(asset))
+            logger.info('gas asset: {}'.format(asset))
             core_exchange_rate = asset['options']['core_exchange_rate']
             gas_core_exchange_rate = round(core_exchange_rate['quote']['amount']/core_exchange_rate['base']['amount'])
             #reward_core = int(transfer[1]['fee']/(10**asset_core_precision) * transfer_operation_N)
             reward_gas = transfer[1]['fee'] * gas_core_exchange_rate * transfer_operation_N
-            print('[initalize] gas_core_exchange_rate: {}, reward_gas: {}, reward_core: {}, transfer fee: {}'.format(gas_core_exchange_rate, reward_gas, reward_core, transfer))
+
+            # init register account_id
+            body_relay = {
+                "jsonrpc": "2.0",
+                "method": "get_account",
+                "params": [register],
+                "id":1
+            }
+            account_info = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
+            register_id = account_info["result"]["id"]
+            logger.info('register: {}, register_id: {}, gas_core_exchange_rate: {}, reward_gas: {}, reward_core: {}, transfer fee: {}'.format(
+                register, register_id, gas_core_exchange_rate, reward_gas, reward_core, transfer))
     except Exception as e:
-        print('[ERROR][init reward] {}'.format(repr(e)))
-        push_message("faucet_server init reward error")
+        logger.error('init failed. error: {}'.format(repr(e)))
+        push_message("init reward error")
 
 def init_db():
     my_db = pymysql.connect(**db)   #连接数据库并创建表
@@ -64,17 +85,26 @@ def init_db():
     try:
         cursor.execute(sql["createTable"])
         my_db.commit()
-    except:
-        push_message("faucet_server init db error")
+    except Exception as e:
         my_db.rollback()
+        logger.warn('init failed. error: {}'.format(repr(e)))
+        # push_message("init db error")
     my_db.close()
 
+def init_host_info():
+    global g_hostname
+    global g_ip
+    g_hostname = socket.getfqdn(socket.gethostname(  ))
+    g_ip = socket.gethostbyname(g_hostname)
+    logger.info('hostname: {}, ip: {}'.format(g_hostname, g_ip))
+
 #服务启动初始化
-def initalize():
+def initialize():
+    init_host_info()
     init_db()
     init_reward()
-    print('[initalize] ip_limit_list: {}'.format(ip_limit_list))
-    print('[initalize] init done.')
+    logger.info('ip_limit_list: {}'.format(ip_limit_list))
+    logger.info('init done.')
 
 def is_cheap_name(name):
     has_spacial_char = False 
@@ -92,22 +122,24 @@ def is_cheap_name(name):
         return True
     return False
 
-def push_message(message, keys='[faucet]'):
+def push_message(message, labels=['faucet']):
+    content = "[{}]{} {}({}), {}".format(env, str(labels), g_hostname, g_ip, message)
+    logger.debug('push content: {}'.format(content))
     try:
         body_relay = {
             "jsonrpc": "2.0",
             "msgtype": "text",
             "text": {
-                "content": keys + message
+                "content": content
             },
             "id":1
         }
         response = json.loads(requests.post(faucet_alert_address, data = json.dumps(body_relay), headers = headers).text)
-        print('[push_message] response: {}'.format(response))
     except Exception as e:
-        print(repr(e))
+        logger.error('push error. {}'.format(repr(e)))
 
-def get_account_asset_balance(account, asset_id='1.3.0'):
+def get_account_asset_balance(account):
+    asset_balances = {}
     try:
         body_relay = {
             "jsonrpc": "2.0",
@@ -117,69 +149,91 @@ def get_account_asset_balance(account, asset_id='1.3.0'):
         }
         response = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
         balances = response['result']
-        #print('>> list_account_balance:\n {}\n'.format(balances))
-        for asset_balance in balances:
-            #print('asset_balance: {}, type: {}, amount: {}'.format(asset_balance, type(asset_balance['amount']), asset_balance['amount']))
-            if asset_balance['asset_id'] == asset_id:
-                return int(asset_balance['amount'])
+        logger.debug('account {} balance {}'.format(account, balances))
+        for ab in balances:
+            asset_balances[ab['asset_id']] = int(ab['amount'])
     except Exception as e:
-        print(repr(e))
-    return 0
+        logger.error('get {} balance error. {}'.format(account, repr(e)))
+    return asset_balances
 
 def params_valid(account):
+    logger.info('account: {}'.format(account)) 
     name = account.get('name', '') #获取帐户名
     active_key = account.get('active_key', '') #获取active公钥
     owner_key = account.get('owner_key', '')   #获取owner公钥
-    print('[params_valid] name: {}, active: {}, owner: {}'.format(name, active_key, owner_key)) 
     if not name:
-        return False, {'msg': 'no name!', 'code': '400'}, {}
+        return False, {'msg': 'no name', 'code': '400'}, {}
     if not is_cheap_name(name):
         return False, {'msg': 'account name {} is not cheap'.format(name), 'code': '400'}, {}
     if not active_key:
-        return False, {'msg': 'no active key!', 'code': '400'}, {}
+        return False, {'msg': 'no active key', 'code': '400'}, {}
     if not owner_key:
-        owner_key = active_key  #如果没有owner_key默认值为active_key
+        owner_key = active_key  
     return True, '', {'name': name, 'active_key': active_key, 'owner_key': owner_key}
 
-def send_reward(core_count, account_to):
-    is_return = False
-    core_amount = get_account_asset_balance(register)
+def send_reward(core_count, account_id):
+    balances = get_account_asset_balance(register)
+    logger.info('core_count:{}, account_id: {}, register {} balance: {}, reward_core: {}, reward_gas: {}'.format(
+        core_count, account_id, register, balances, reward_core, reward_gas))
 
+    messages = []
     #发送奖励core_asset
     if core_count <= reward_core_until_N:
         try: 
+            core_asset_id = "1.3.0"
+            core_amount = balances[core_asset_id]
             if reward_core*(10**asset_core_precision) < core_amount:
                 body_relay = {
                     "jsonrpc": "2.0",
                     "method": "transfer",
-                    "params": [register, account_to, reward_core, asset_core, memo, "true"],
+                    "params": [register_id, account_id, "%.5f"%(reward_core), asset_core, [memo, "false"], "true"],
                     "id":1
                 }
-                requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers)
+                response = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
+                if 'error' in response:
+                    logger.warn('request: {}, response: {}'.format(body_relay, response))
+                    message = 'register {} no enough {}({}), reward need {}'.format(
+                        register, asset_core, core_amount/(10**asset_core_precision), reward_core)
+                    messages.append(message)
             else:
-                is_return = True
-                push_message('register {} no {}'.format(register, asset_core))
+                message = 'register {} no enough {}({}), reward need {}'.format(
+                    register, asset_core, core_amount/(10**asset_core_precision), reward_core)
+                messages.append(message)
+                logger.warn(message)
         except Exception as e:
-            print(repr(e))
-            return False, {'msg': 'transfer failed!', 'data': repr(e), 'code': '400'}
+            message = 'register {} no {}, reward need {}'.format(register, asset_core, reward_core)
+            messages.append(message)
+            logger.error('{}, error: {}'.format(message, repr(e)))
 
     #发送奖励gas
-    if not is_return:
-        if reward_gas < core_amount * gas_core_exchange_rate:
-            try:
-                body_relay = {
-                    "jsonrpc": "2.0",
-                    "method": "update_collateral_for_gas",
-                    "params": [register, account_to, reward_gas, "true"],
-                    "id":1
-                }
-                requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers)
-            except Exception as e:
-                print(repr(e))
-                return False, {'msg': 'update_collateral_for_gas failed!', 'data': repr(e), 'code': '400'}
+    try:
+        gas_asset_id = "1.3.1"
+        gas_amount = balances[gas_asset_id]
+        if reward_gas < gas_amount:
+            body_relay = {
+                "jsonrpc": "2.0",
+                "method": "update_collateral_for_gas",
+                "params": [register_id, account_id, int(reward_gas), "true"],
+                "id":1
+            }
+            response = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
+            logger.debug('update_collateral_for_gas: {}'.format(response))
+            if 'error' in response:
+                logger.warn('request: {}, response: {}'.format(body_relay, response))
+                message = 'register {} no enough {}({}), collateral need {}'.format(
+                    register, asset_gas, gas_amount/(10**asset_core_precision), reward_gas/(10**asset_core_precision))
+                messages.append(message)
         else:
-            push_message('register {} no enough {} for collateral gas'.format(register, asset_core))
-    return True, ''
+            message = 'register {} no enough {}({}), collateral need {}'.format(
+                register, asset_gas, gas_amount/(10**asset_core_precision), reward_gas/(10**asset_core_precision))
+            messages.append(message)
+            logger.warn(message)
+    except Exception as e:
+        message = 'register {} no {}, reward need {}'.format(register, asset_gas, reward_gas/(10**asset_core_precision))
+        messages.append(message)
+        logger.error('{}, error: {}'.format(message, repr(e)))
+    if messages:
+        push_message(messages)
 
 #注册帐户
 def register_account(account):
@@ -193,11 +247,13 @@ def register_account(account):
         info = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
         if "error" in info:
             error = info["error"]["message"]
+            # logger.error('register account failed. account: {}'.format(account))
+            push_message('register account({}) failed. {}'.format(account['name'], error))
             return False, {'msg': 'register account {} failed. {}'.format(account['name'], error), 'code': '400'}, ''
     except Exception as e:
-        print(repr(e))
-        push_message("register account {} failed".format(account['name']))
-        return False, {'msg': '未知错误!', 'code': '400'}, ''
+        # logger.error('register account failed. account: {}, error: {}'.format(account, repr(e)))
+        # push_message("register account {} failed".format(account['name']))
+        return False, {'msg': 'register account failed', 'code': '400'}, ''
     try:
         body_relay = {
             "jsonrpc": "2.0",
@@ -206,11 +262,11 @@ def register_account(account):
             "id":1
         }
         account_info = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
-        userid = account_info["result"]["id"]
+        account_id = account_info["result"]["id"]
     except Exception as e:
-        print(repr(e))
+        # logger.error('get account failed. account: {}, error: {}'.format(account, repr(e)))
         return False, {"msg": "obtain user id error!", "code": 400}, ''
-    return True, '', userid
+    return True, '', account_id
 
 def account_count_check(ip, date):
     # 数据库连接
@@ -220,19 +276,19 @@ def account_count_check(ip, date):
     #today = datetime.datetime.utcnow().strftime('%Y-%m-%d')
     try:
         count = cursor.execute(sql['count'].format(date, date))
-        if count % 20 == 0:
-            print('{} already create {} account'.format(date, count))
+        logger.debug('ip: {}, date: {}, count: {}. max_limit: {}'.format(ip, date, count, registrar_account_max))
         if has_account_max_limit and count > registrar_account_max:
             my_db.close()
             return False, {"msg": "Up to the maximum number of accounts created today", "code": 400}, 0
-        
         #ip max register check
         this_ip_count = cursor.execute(sql['ip_count'].format(ip, date))
+        logger.debug('this_ip_count: {}, ip_max_limit: {}'.format(this_ip_count, ip_max_register_limit))
         if has_ip_max_limit and this_ip_count > ip_max_register_limit:
             my_db.close()
-            return False, {"msg": "Your address no access authority", "code": 400}, 0
+            return False, {"msg": "You has no access authority", "code": 400}, 0
     except Exception as e:
         my_db.close()
+        # logger.error('db failed. ip: {}, error: {}'.format(ip, repr(e)))
         return False, {"msg": "db error", "code": 400}, 0
     my_db.close()
     return True, '', count
@@ -248,8 +304,8 @@ def store_new_account(data):
         cursor.execute(sql['insertData'].format(data['id'], data['name'], data['active_key'], data['ip'], create_time))
         my_db.commit()
     except Exception as e:
-        print(repr(e))
         my_db.rollback()
+        logger.error('execute insertData failed. data: {}, error: {}'.format(data, repr(e)))
     finally:
         my_db.close()
 
@@ -263,13 +319,13 @@ class FaucetHandler(tornado.web.RequestHandler):
         self.post()
 
     def post(self):
-        auth = self.request.headers.get('authorization', '') #验证权限
+        auth = self.request.headers.get('authorization', '') 
         if auth not in auth_list.values():
             return self.write({'msg': 'no access authority!', 'code': '400'})
         
         #ip black check
         remote_ip = self.request.remote_ip
-        print("ip:>>>>%s" % remote_ip)
+        logger.info("request ip: {}, ip_limit_list: {}".format(remote_ip, ip_limit_list))
         if remote_ip in ip_limit_list:
             return self.write({"msg": "no access authority", "code": 400})
         
@@ -278,39 +334,38 @@ class FaucetHandler(tornado.web.RequestHandler):
         account = data.get("account")
         status, msg, account_data = params_valid(account)
         if not status:
-            print('[ERROR] {}'.format(msg))
+            logger.error('status:{}, msg: {}, account_data: {}'.format(status, msg, account_data))
             return self.write(msg)
 
         # check register count
         today = datetime.datetime.utcnow().strftime('%Y-%m-%d')
-        status, msg, account_count = account_count_check(today, remote_ip)
+        status, msg, account_count = account_count_check(remote_ip, today)
+        logger.info('[account_count_check] remote_ip: {}, today: {}, status: {}, msg: {}, account_count: {}'.format(
+            remote_ip, today, status, msg, account_count))
         if not status:
-            print('[ERROR] {}'.format(msg))
             return self.write(msg)
         
         #register account
-        status, msg, userid = register_account(account_data)
+        status, msg, new_account_id = register_account(account_data)
+        logger.info('status:{}, msg: {}, new_account_id: {}, account: {}'.format(status, msg, new_account_id, account_data))
         if not status:
-            print('[ERROR] {}'.format(msg))
             return self.write(msg)
 
         # send reward
-        status, msg = send_reward(account_count, account_data['name'])
-        if not status:
-            print('[ERROR] {}'.format(msg))
-            return self.write(msg)
+        send_reward(account_count, new_account_id)
         
         #store new account data
-        account_data['id'] = userid
+        account_data['id'] = new_account_id
         account_data['ip'] = remote_ip
         store_new_account(account_data)
 
         #return
         del account_data['ip']
-        return self.write({'msg': 'Regist successful! {}, {}'.format(account_data['name'], memo), 'data': {"account": account_data }, 'code': '200'})
+        return self.write({'msg': 'Register successful! {}, {}'.format(account_data['name'], memo), 'data': {"account": account_data }, 'code': '200'})
 
 def main():
-    initalize()
+    logger.info('-------------- faucet server start ----------------')
+    initialize()
     parse_command_line()
     app = tornado.web.Application(
         handlers=[
