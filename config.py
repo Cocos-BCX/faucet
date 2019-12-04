@@ -6,14 +6,14 @@ auth_list = {
 }
 
 #命令行钱包地址
-cli_wallet_url = "http://127.0.0.1:8048"
-#cli_wallet_url = "http://172.17.25.154:8048"
+#cli_wallet_url = "http://127.0.0.1:8048"
+cli_wallet_url = "http://172.17.25.154:8048"
 
 #请求头
 headers = {"content-type": "application/json"}
 
 # test | prod
-env = "prod"
+env = "testnet"
 g_hostname = "localhost"
 g_ip = "127.0.0.1"
 
@@ -74,9 +74,9 @@ ip_limit_list = set()
 #ip_limit_list.add("127.0.0.1")
 
 # dingding
-#test token: ddf5792a6a4ddc5117026dfc7f90b14e22584b7ecf72a66f4ddf45506fa076f7
-access_token = "ddf5792a6a4ddc5117026dfc7f90b14e22584b7ecf72a66f4ddf45506fa076f7"
-#faucet_alert_address = "https://oapi.dingtalk.com/robot/send?access_token=e9ccd60b531c8d12ea9fd984ebc2a53e770237e347c25cd1ef4d72c8ec0a5275"
+#developer token: ddf5792a6a4ddc5117026dfc7f90b14e22584b7ecf72a66f4ddf45506fa076f7
+#testnet, prod token: e9ccd60b531c8d12ea9fd984ebc2a53e770237e347c25cd1ef4d72c8ec0a5275
+access_token = "e9ccd60b531c8d12ea9fd984ebc2a53e770237e347c25cd1ef4d72c8ec0a5275"
 faucet_alert_address = "https://oapi.dingtalk.com/robot/send?access_token=" + access_token
 
 

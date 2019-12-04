@@ -15,10 +15,15 @@
 * utils.pu: 常用工具，主要是log
 * faucet_server.py：水龙头服务主逻辑  
 
-## 手动启动  
+## 服务启动  
 ``` shell
     nohup python3 faucet_server.py >> faucet_server.log 2>&1 &   
 ```
+
+## 服务停止
+``` shell  
+ ps -ef | grep "faucet_server" | grep -v "grep" | awk '{print $2}' | xargs kill -9
+```  
 
 ## 服务接口信息  
 * port: 8041  

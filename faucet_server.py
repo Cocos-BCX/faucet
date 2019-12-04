@@ -192,8 +192,7 @@ def send_reward(core_count, account_id):
                 response = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
                 if 'error' in response:
                     logger.warn('request: {}, response: {}'.format(body_relay, response))
-                    message = 'register {} no enough {}({}), reward need {}'.format(
-                        register, asset_core, core_amount/(10**asset_core_precision), reward_core)
+                    message = 'register {} no enough {}, {}'.format(register, asset_core, response["error"]["message"])
                     messages.append(message)
             else:
                 message = 'register {} no enough {}({}), reward need {}'.format(
@@ -220,8 +219,7 @@ def send_reward(core_count, account_id):
             logger.debug('update_collateral_for_gas: {}'.format(response))
             if 'error' in response:
                 logger.warn('request: {}, response: {}'.format(body_relay, response))
-                message = 'register {} no enough {}({}), collateral need {}'.format(
-                    register, asset_gas, gas_amount/(10**asset_core_precision), reward_gas/(10**asset_core_precision))
+                message = 'register {} no enough {}, {}'.format(register, asset_gas, response["error"]["message"])
                 messages.append(message)
         else:
             message = 'register {} no enough {}({}), collateral need {}'.format(
@@ -285,7 +283,7 @@ def account_count_check(ip, date):
         logger.debug('this_ip_count: {}, ip_max_limit: {}'.format(this_ip_count, ip_max_register_limit))
         if has_ip_max_limit and this_ip_count > ip_max_register_limit:
             my_db.close()
-            return False, {"msg": "You has no access authority", "code": 400}, 0
+            return False, {"msg": "You register too many free account", "code": 400}, 0
     except Exception as e:
         my_db.close()
         # logger.error('db failed. ip: {}, error: {}'.format(ip, repr(e)))
