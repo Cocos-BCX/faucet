@@ -74,4 +74,10 @@ ip_limit_list = set()
 #ip_limit_list.add("127.0.0.1")
 
 # dingding
-faucet_alert_address = "https://oapi.dingtalk.com/robot/send?access_token=e9ccd60b531c8d12ea9fd984ebc2a53e770237e347c25cd1ef4d72c8ec0a5275"
+#test token: ddf5792a6a4ddc5117026dfc7f90b14e22584b7ecf72a66f4ddf45506fa076f7
+access_token = "ddf5792a6a4ddc5117026dfc7f90b14e22584b7ecf72a66f4ddf45506fa076f7"
+#faucet_alert_address = "https://oapi.dingtalk.com/robot/send?access_token=e9ccd60b531c8d12ea9fd984ebc2a53e770237e347c25cd1ef4d72c8ec0a5275"
+faucet_alert_address = "https://oapi.dingtalk.com/robot/send?access_token=" + access_token
+
+
+

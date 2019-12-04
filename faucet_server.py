@@ -63,7 +63,6 @@ def init_reward():
             gas_core_exchange_rate = round(core_exchange_rate['quote']['amount']/core_exchange_rate['base']['amount'])
             #reward_core = int(transfer[1]['fee']/(10**asset_core_precision) * transfer_operation_N)
             reward_gas = transfer[1]['fee'] * gas_core_exchange_rate * transfer_operation_N
-            logger.info('gas_core_exchange_rate: {}, reward_gas: {}, reward_core: {}, transfer fee: {}'.format(gas_core_exchange_rate, reward_gas, reward_core, transfer))
 
             # init register account_id
             body_relay = {
@@ -74,6 +73,8 @@ def init_reward():
             }
             account_info = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
             register_id = account_info["result"]["id"]
+            logger.info('register: {}, register_id: {}, gas_core_exchange_rate: {}, reward_gas: {}, reward_core: {}, transfer fee: {}'.format(
+                register, register_id, gas_core_exchange_rate, reward_gas, reward_core, transfer))
     except Exception as e:
         logger.error('init failed. error: {}'.format(repr(e)))
         push_message("init reward error")
@@ -137,7 +138,8 @@ def push_message(message, labels=['faucet']):
     except Exception as e:
         logger.error('push error. {}'.format(repr(e)))
 
-def get_account_asset_balance(account, asset_id='1.3.0'):
+def get_account_asset_balance(account):
+    asset_balances = {}
     try:
         body_relay = {
             "jsonrpc": "2.0",
@@ -147,13 +149,12 @@ def get_account_asset_balance(account, asset_id='1.3.0'):
         }
         response = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
         balances = response['result']
-        logger.debug('>> list_account_balance {}: {}'.format(account, balances))
-        for asset_balance in balances:
-            if asset_balance['asset_id'] == asset_id:
-                return int(asset_balance['amount'])
+        logger.debug('account {} balance {}'.format(account, balances))
+        for ab in balances:
+            asset_balances[ab['asset_id']] = int(ab['amount'])
     except Exception as e:
         logger.error('get {} balance error. {}'.format(account, repr(e)))
-    return 0
+    return asset_balances
 
 def params_valid(account):
     logger.info('account: {}'.format(account)) 
@@ -171,13 +172,16 @@ def params_valid(account):
     return True, '', {'name': name, 'active_key': active_key, 'owner_key': owner_key}
 
 def send_reward(core_count, account_id):
-    logger.info('account: {}, core_count:{}'.format(account_id, core_amount))
-    is_return = False
-    core_amount = get_account_asset_balance(register)
+    balances = get_account_asset_balance(register)
+    logger.info('core_count:{}, account_id: {}, register {} balance: {}, reward_core: {}, reward_gas: {}'.format(
+        core_count, account_id, register, balances, reward_core, reward_gas))
 
+    messages = []
     #发送奖励core_asset
     if core_count <= reward_core_until_N:
         try: 
+            core_asset_id = "1.3.0"
+            core_amount = balances[core_asset_id]
             if reward_core*(10**asset_core_precision) < core_amount:
                 body_relay = {
                     "jsonrpc": "2.0",
@@ -185,32 +189,51 @@ def send_reward(core_count, account_id):
                     "params": [register_id, account_id, "%.5f"%(reward_core), asset_core, [memo, "false"], "true"],
                     "id":1
                 }
-                requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers)
+                response = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
+                if 'error' in response:
+                    logger.warn('request: {}, response: {}'.format(body_relay, response))
+                    message = 'register {} no enough {}({}), reward need {}'.format(
+                        register, asset_core, core_amount/(10**asset_core_precision), reward_core)
+                    messages.append(message)
             else:
-                is_return = True
-                push_message('register {} no enough {}'.format(register, asset_core))
-                logger.warn('register {} no enough {}. reward_core: {}'.format(register, asset_core, reward_core))
+                message = 'register {} no enough {}({}), reward need {}'.format(
+                    register, asset_core, core_amount/(10**asset_core_precision), reward_core)
+                messages.append(message)
+                logger.warn(message)
         except Exception as e:
-            logger.error('transfer failed. account: {}, error: {}'.format(account_id, repr(e)))
-            return False, {'msg': 'transfer failed!', 'data': repr(e), 'code': '400'}
+            message = 'register {} no {}, reward need {}'.format(register, asset_core, reward_core)
+            messages.append(message)
+            logger.error('{}, error: {}'.format(message, repr(e)))
 
     #发送奖励gas
-    if not is_return:
-        if reward_gas < core_amount * gas_core_exchange_rate:
-            try:
-                body_relay = {
-                    "jsonrpc": "2.0",
-                    "method": "update_collateral_for_gas",
-                    "params": [register_id, account_id, int(reward_gas), "true"],
-                    "id":1
-                }
-                requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers)
-            except Exception as e:
-                logger.error('update_collateral_for_gas failed. account: {}, reward_gas: {}, error: {}'.format(account_id, reward_gas, repr(e)))
-                return False, {'msg': 'update_collateral_for_gas failed!', 'data': repr(e), 'code': '400'}
+    try:
+        gas_asset_id = "1.3.1"
+        gas_amount = balances[gas_asset_id]
+        if reward_gas < gas_amount:
+            body_relay = {
+                "jsonrpc": "2.0",
+                "method": "update_collateral_for_gas",
+                "params": [register_id, account_id, int(reward_gas), "true"],
+                "id":1
+            }
+            response = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
+            logger.debug('update_collateral_for_gas: {}'.format(response))
+            if 'error' in response:
+                logger.warn('request: {}, response: {}'.format(body_relay, response))
+                message = 'register {} no enough {}({}), collateral need {}'.format(
+                    register, asset_gas, gas_amount/(10**asset_core_precision), reward_gas/(10**asset_core_precision))
+                messages.append(message)
         else:
-            push_message('register {} no enough {} for collateral gas'.format(register, asset_core))
-    return True, ''
+            message = 'register {} no enough {}({}), collateral need {}'.format(
+                register, asset_gas, gas_amount/(10**asset_core_precision), reward_gas/(10**asset_core_precision))
+            messages.append(message)
+            logger.warn(message)
+    except Exception as e:
+        message = 'register {} no {}, reward need {}'.format(register, asset_gas, reward_gas/(10**asset_core_precision))
+        messages.append(message)
+        logger.error('{}, error: {}'.format(message, repr(e)))
+    if messages:
+        push_message(messages)
 
 #注册帐户
 def register_account(account):
@@ -224,11 +247,12 @@ def register_account(account):
         info = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
         if "error" in info:
             error = info["error"]["message"]
-            logger.error('register account failed. account: {}'.format(account))
+            # logger.error('register account failed. account: {}'.format(account))
+            push_message('register account({}) failed. {}'.format(account['name'], error))
             return False, {'msg': 'register account {} failed. {}'.format(account['name'], error), 'code': '400'}, ''
     except Exception as e:
-        logger.error('register account failed. account: {}, error: {}'.format(account, repr(e)))
-        push_message("register account {} failed".format(account['name']))
+        # logger.error('register account failed. account: {}, error: {}'.format(account, repr(e)))
+        # push_message("register account {} failed".format(account['name']))
         return False, {'msg': 'register account failed', 'code': '400'}, ''
     try:
         body_relay = {
@@ -240,7 +264,7 @@ def register_account(account):
         account_info = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
         account_id = account_info["result"]["id"]
     except Exception as e:
-        logger.error('get account failed. account: {}, error: {}'.format(account, repr(e)))
+        # logger.error('get account failed. account: {}, error: {}'.format(account, repr(e)))
         return False, {"msg": "obtain user id error!", "code": 400}, ''
     return True, '', account_id
 
@@ -258,12 +282,13 @@ def account_count_check(ip, date):
             return False, {"msg": "Up to the maximum number of accounts created today", "code": 400}, 0
         #ip max register check
         this_ip_count = cursor.execute(sql['ip_count'].format(ip, date))
+        logger.debug('this_ip_count: {}, ip_max_limit: {}'.format(this_ip_count, ip_max_register_limit))
         if has_ip_max_limit and this_ip_count > ip_max_register_limit:
             my_db.close()
-            return False, {"msg": "Your address no access authority", "code": 400}, 0
+            return False, {"msg": "You has no access authority", "code": 400}, 0
     except Exception as e:
         my_db.close()
-        logger.error('db failed. ip: {}, error: {}'.format(ip, repr(e)))
+        # logger.error('db failed. ip: {}, error: {}'.format(ip, repr(e)))
         return False, {"msg": "db error", "code": 400}, 0
     my_db.close()
     return True, '', count
@@ -280,7 +305,7 @@ def store_new_account(data):
         my_db.commit()
     except Exception as e:
         my_db.rollback()
-        logger.error('execute failed. data: {}, error: {}'.format(data, repr(e)))
+        logger.error('execute insertData failed. data: {}, error: {}'.format(data, repr(e)))
     finally:
         my_db.close()
 
@@ -314,25 +339,23 @@ class FaucetHandler(tornado.web.RequestHandler):
 
         # check register count
         today = datetime.datetime.utcnow().strftime('%Y-%m-%d')
-        status, msg, account_count = account_count_check(today, remote_ip)
+        status, msg, account_count = account_count_check(remote_ip, today)
+        logger.info('[account_count_check] remote_ip: {}, today: {}, status: {}, msg: {}, account_count: {}'.format(
+            remote_ip, today, status, msg, account_count))
         if not status:
-            logger.error('status:{}, msg: {}, account_count: {}'.format(status, msg, account_count))
             return self.write(msg)
         
         #register account
-        status, msg, userid = register_account(account_data)
+        status, msg, new_account_id = register_account(account_data)
+        logger.info('status:{}, msg: {}, new_account_id: {}, account: {}'.format(status, msg, new_account_id, account_data))
         if not status:
-            logger.error('status:{}, msg: {}, userid: {}'.format(status, msg, userid))
             return self.write(msg)
 
         # send reward
-        status, msg = send_reward(account_count, userid)
-        if not status:
-            logger.error('status:{}, msg: {}, account_count: {}'.format(status, msg, account_count))
-            return self.write(msg)
+        send_reward(account_count, new_account_id)
         
         #store new account data
-        account_data['id'] = userid
+        account_data['id'] = new_account_id
         account_data['ip'] = remote_ip
         store_new_account(account_data)
 
@@ -341,6 +364,7 @@ class FaucetHandler(tornado.web.RequestHandler):
         return self.write({'msg': 'Register successful! {}, {}'.format(account_data['name'], memo), 'data': {"account": account_data }, 'code': '200'})
 
 def main():
+    logger.info('-------------- faucet server start ----------------')
     initialize()
     parse_command_line()
     app = tornado.web.Application(
