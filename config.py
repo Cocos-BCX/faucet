@@ -53,10 +53,12 @@ asset_gas = 'GAS'
 gas_core_exchange_rate = 1
 
 #发送奖励数量
-reward_core = 0.1
+# testnet临时测试 100000
+reward_core = 100000 
 reward_core_until_N = 1000
 transfer_operation_N = 2
-reward_gas = reward_core * (10 ** asset_core_precision) * gas_core_exchange_rate * transfer_operation_N
+#reward_gas = reward_core * (10 ** asset_core_precision) * gas_core_exchange_rate * transfer_operation_N
+reward_gas = 20000
 
 #注册完成欢迎信息
 memo = 'Welcome To COCOS Community!'
@@ -78,6 +80,3 @@ ip_limit_list = set()
 #testnet, prod token: e9ccd60b531c8d12ea9fd984ebc2a53e770237e347c25cd1ef4d72c8ec0a5275
 access_token = "e9ccd60b531c8d12ea9fd984ebc2a53e770237e347c25cd1ef4d72c8ec0a5275"
 faucet_alert_address = "https://oapi.dingtalk.com/robot/send?access_token=" + access_token
-
-
-
