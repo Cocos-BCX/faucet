@@ -96,6 +96,7 @@ def init_host_info():
     global g_ip
     g_hostname = socket.getfqdn(socket.gethostname(  ))
     g_ip = socket.gethostbyname(g_hostname)
+    g_hostname = os.environ['HOST_NAME']
     logger.info('hostname: {}, ip: {}'.format(g_hostname, g_ip))
 
 #服务启动初始化
@@ -123,7 +124,7 @@ def is_cheap_name(name):
     return False
 
 def push_message(message, labels=['faucet']):
-    content = "[{}]{} {}({}), {}".format(env, str(labels), g_hostname, g_ip, message)
+    content = "[{}]{} {}, {}".format(env, str(labels), g_hostname, message)
     logger.debug('push content: {}'.format(content))
     try:
         body_relay = {
