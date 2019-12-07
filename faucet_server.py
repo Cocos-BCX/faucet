@@ -96,7 +96,8 @@ def init_host_info():
     global g_ip
     g_hostname = socket.getfqdn(socket.gethostname(  ))
     g_ip = socket.gethostbyname(g_hostname)
-    g_hostname = os.environ['HOST_NAME']
+    if 'HOST_NAME' in os.environ:
+        g_hostname = os.environ['HOST_NAME']  
     logger.info('hostname: {}, ip: {}'.format(g_hostname, g_ip))
 
 #服务启动初始化
@@ -246,11 +247,12 @@ def register_account(account):
         info = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
         if "error" in info:
             error = info["error"]["message"]
-            # logger.error('register account failed. account: {}'.format(account))
-            push_message('register account({}) failed. {}'.format(account['name'], error))
+            # logger.warn('request: {}, response: {}'.format(body_relay, response))
+            if error.find('current_account_itr == acnt_indx') == -1:
+                push_message('register account({}) failed. {}'.format(account['name'], error))
             return False, {'msg': 'register account {} failed. {}'.format(account['name'], error), 'code': '400'}, ''
     except Exception as e:
-        # logger.error('register account failed. account: {}, error: {}'.format(account, repr(e)))
+        logger.error('register account failed. account: {}, error: {}'.format(account, repr(e)))
         # push_message("register account {} failed".format(account['name']))
         return False, {'msg': 'register account failed', 'code': '400'}, ''
     try:
@@ -263,7 +265,7 @@ def register_account(account):
         account_info = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
         account_id = account_info["result"]["id"]
     except Exception as e:
-        # logger.error('get account failed. account: {}, error: {}'.format(account, repr(e)))
+        logger.error('get account failed. account: {}, error: {}'.format(account, repr(e)))
         return False, {"msg": "obtain user id error!", "code": 400}, ''
     return True, '', account_id
 
@@ -324,8 +326,13 @@ class FaucetHandler(tornado.web.RequestHandler):
         
         #ip black check
         remote_ip = self.request.remote_ip
-        logger.info("request ip: {}, ip_limit_list: {}".format(remote_ip, ip_limit_list))
-        if remote_ip in ip_limit_list:
+        real_ip = self.request.headers.get('X-Real-IP')
+        forwarded_ips  = self.request.headers.get('X-Forwarded-For')
+        ip_data = 'remote_ip: {}, real_ip: {}, forwarded-for: {}'.format(remote_ip, real_ip, forwarded_ips)
+        logger.info("request ip_data: {}, ip_limit_list: {}".format(ip_data, ip_limit_list))
+        if real_ip is None:
+            real_ip = remote_ip  
+        if real_ip in ip_limit_list:
             return self.write({"msg": "no access authority", "code": 400})
         
         # request params check
@@ -338,9 +345,9 @@ class FaucetHandler(tornado.web.RequestHandler):
 
         # check register count
         today = datetime.datetime.utcnow().strftime('%Y-%m-%d')
-        status, msg, account_count = account_count_check(remote_ip, today)
-        logger.info('[account_count_check] remote_ip: {}, today: {}, status: {}, msg: {}, account_count: {}'.format(
-            remote_ip, today, status, msg, account_count))
+        status, msg, account_count = account_count_check(real_ip, today)
+        logger.info('[account_count_check] real_ip: {}, today: {}, status: {}, msg: {}, account_count: {}'.format(
+            real_ip, today, status, msg, account_count))
         if not status:
             return self.write(msg)
         
@@ -355,7 +362,7 @@ class FaucetHandler(tornado.web.RequestHandler):
         
         #store new account data
         account_data['id'] = new_account_id
-        account_data['ip'] = remote_ip
+        account_data['ip'] = real_ip
         store_new_account(account_data)
 
         #return
