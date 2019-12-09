@@ -164,11 +164,11 @@ def params_valid(account):
     active_key = account.get('active_key', '') #获取active公钥
     owner_key = account.get('owner_key', '')   #获取owner公钥
     if not name:
-        return False, {'msg': 'no name', 'code': '400'}, {}
+        return False, {"msg": status_text['bad_request']['text'], "code": status_text['bad_request']['code']}, {}
     if not is_cheap_name(name):
-        return False, {'msg': 'account name {} is not cheap'.format(name), 'code': '400'}, {}
+        return False, {"msg": status_text['not_cheap_account']['text'], "code": status_text['not_cheap_account']['code']}, {}
     if not active_key:
-        return False, {'msg': 'no active key', 'code': '400'}, {}
+        return False, {"msg": status_text['bad_request']['text'], "code": status_text['bad_request']['code']}, {}
     if not owner_key:
         owner_key = active_key  
     return True, '', {'name': name, 'active_key': active_key, 'owner_key': owner_key}
@@ -247,14 +247,15 @@ def register_account(account):
         info = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
         if "error" in info:
             error = info["error"]["message"]
-            # logger.warn('request: {}, response: {}'.format(body_relay, response))
+            logger.warn('request: {}, error: {}'.format(body_relay, error))
             if error.find('current_account_itr == acnt_indx') == -1:
                 push_message('register account({}) failed. {}'.format(account['name'], error))
-            return False, {'msg': 'register account {} failed. {}'.format(account['name'], error), 'code': '400'}, ''
+                return False, {"msg": status_text['server_error']['text'], "code": status_text['server_error']['code']}, ''
+            return False, {"msg": status_text['account_registered']['text'], "code": status_text['account_registered']['code']}, ''
     except Exception as e:
         logger.error('register account failed. account: {}, error: {}'.format(account, repr(e)))
         # push_message("register account {} failed".format(account['name']))
-        return False, {'msg': 'register account failed', 'code': '400'}, ''
+        return False, {"msg": status_text['server_error']['text'], "code": status_text['server_error']['code']}, ''
     try:
         body_relay = {
             "jsonrpc": "2.0",
@@ -266,7 +267,7 @@ def register_account(account):
         account_id = account_info["result"]["id"]
     except Exception as e:
         logger.error('get account failed. account: {}, error: {}'.format(account, repr(e)))
-        return False, {"msg": "obtain user id error!", "code": 400}, ''
+        return False, {"msg": status_text['server_error']['text'], "code": status_text['server_error']['code']}, 0
     return True, '', account_id
 
 def account_count_check(ip, date):
@@ -280,17 +281,17 @@ def account_count_check(ip, date):
         logger.debug('ip: {}, date: {}, count: {}. max_limit: {}'.format(ip, date, count, registrar_account_max))
         if has_account_max_limit and count > registrar_account_max:
             my_db.close()
-            return False, {"msg": "Up to the maximum number of accounts created today", "code": 400}, 0
+            return False, {"msg": status_text['forbidden_today_max']['text'], "code": status_text['forbidden_today_max']['code']}, 0
         #ip max register check
         this_ip_count = cursor.execute(sql['ip_count'].format(ip, date))
         logger.debug('this_ip_count: {}, ip_max_limit: {}'.format(this_ip_count, ip_max_register_limit))
         if has_ip_max_limit and this_ip_count > ip_max_register_limit:
             my_db.close()
-            return False, {"msg": "You register too many free account", "code": 400}, 0
+            return False, {"msg": status_text['forbidden_ip_max']['text'], "code": status_text['forbidden_ip_max']['code']}, 0
     except Exception as e:
         my_db.close()
-        # logger.error('db failed. ip: {}, error: {}'.format(ip, repr(e)))
-        return False, {"msg": "db error", "code": 400}, 0
+        logger.error('db failed. ip: {}, error: {}'.format(ip, repr(e)))
+        return False, {"msg": status_text['server_error']['text'], "code": status_text['server_error']['code']}, 0
     my_db.close()
     return True, '', count
 
@@ -322,7 +323,7 @@ class FaucetHandler(tornado.web.RequestHandler):
     def post(self):
         auth = self.request.headers.get('authorization', '') 
         if auth not in auth_list.values():
-            return self.write({'msg': 'no access authority!', 'code': '400'})
+            return self.write({'msg': status_text['forbidden_no_auth']['text'], 'code': status_text['forbidden_no_auth']['code']})  
         
         #ip black check
         remote_ip = self.request.remote_ip
@@ -333,7 +334,7 @@ class FaucetHandler(tornado.web.RequestHandler):
         if real_ip is None:
             real_ip = remote_ip  
         if real_ip in ip_limit_list:
-            return self.write({"msg": "no access authority", "code": 400})
+            return self.write({'msg': status_text['forbidden_no_auth']['text'], 'code': status_text['forbidden_no_auth']['code']}) 
         
         # request params check
         data = json.loads(self.request.body.decode("utf8"))
