@@ -6,21 +6,28 @@ auth_list = {
 }
 
 #命令行钱包地址
-#cli_wallet_url = "http://127.0.0.1:8047"
+#cli_wallet_url = "http://127.0.0.1:8048"
 cli_wallet_url = "http://172.17.25.154:8048"
 
 #请求头
 headers = {"content-type": "application/json"}
 
+# test | prod
+env = "testnet"
+g_hostname = "localhost"
+g_ip = "127.0.0.1"
+
 #注册帐户的注册人
+# faucet1 1.2.18 faucet2 1.2.19 faucet3 1.2.20 faucet4 1.2.21
 register = "nicotest"
+register_id = "1.2.16" 
 
 #mysql数据库相关参数
 db = { 
-    'host': '172.17.25.150',
+    'host': '127.0.0.1',
     'port': 3306,
-    'user': 'faucet',
-    'password': 'iyeQSG0j',
+    'user': 'root',
+    'password': '123456',
     'charset': 'utf8',
     'db': 'cocosbcx'
 }
@@ -46,10 +53,12 @@ asset_gas = 'GAS'
 gas_core_exchange_rate = 1
 
 #发送奖励数量
-reward_core = 0.1
+# testnet临时测试 100000
+reward_core = 100000 
 reward_core_until_N = 1000
 transfer_operation_N = 2
-reward_gas = reward_core * (10 ** asset_core_precision) * gas_core_exchange_rate * transfer_operation_N
+#reward_gas = reward_core * (10 ** asset_core_precision) * gas_core_exchange_rate * transfer_operation_N
+reward_gas = 20000
 
 #注册完成欢迎信息
 memo = 'Welcome To COCOS Community!'
@@ -67,4 +76,7 @@ ip_limit_list = set()
 #ip_limit_list.add("127.0.0.1")
 
 # dingding
-faucet_alert_address = "https://oapi.dingtalk.com/robot/send?access_token=e9ccd60b531c8d12ea9fd984ebc2a53e770237e347c25cd1ef4d72c8ec0a5275"
+#developer token: ddf5792a6a4ddc5117026dfc7f90b14e22584b7ecf72a66f4ddf45506fa076f7
+#testnet, prod token: e9ccd60b531c8d12ea9fd984ebc2a53e770237e347c25cd1ef4d72c8ec0a5275
+access_token = "e9ccd60b531c8d12ea9fd984ebc2a53e770237e347c25cd1ef4d72c8ec0a5275"
+faucet_alert_address = "https://oapi.dingtalk.com/robot/send?access_token=" + access_token
