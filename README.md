@@ -34,10 +34,12 @@
     active_key: string # active公钥  (必须)  
     owner_key: string    #owner公钥 (非必须，如果没有, owner_key = active_key)  
 * 请求返回格式：  
+
 ``` json  
     {"code": int, "data": object, "msg": string} 
 ```
 * code说明：  
+
 ``` text  
     200     -- 请求成功  
     400001  --  请求参数非法  
