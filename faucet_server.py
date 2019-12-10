@@ -94,8 +94,11 @@ def init_db():
 def init_host_info():
     global g_hostname
     global g_ip
-    g_hostname = socket.getfqdn(socket.gethostname(  ))
-    g_ip = socket.gethostbyname(g_hostname)
+    try:
+        g_hostname = socket.getfqdn(socket.gethostname())
+        g_ip = socket.gethostbyname(g_hostname)
+    except Exception as e:
+        logger.warn('init host info. error: {}'.format(repr(e)))
     if 'HOST_NAME' in os.environ:
         g_hostname = os.environ['HOST_NAME']  
     logger.info('hostname: {}, ip: {}'.format(g_hostname, g_ip))
@@ -107,22 +110,6 @@ def initialize():
     init_reward()
     logger.info('ip_limit_list: {}'.format(ip_limit_list))
     logger.info('init done.')
-
-def is_cheap_name(name):
-    has_spacial_char = False 
-    special_char = 'aeiouy'
-    special_delimiter = '.-/'
-    for ch in name:
-        if ch >= '0' and ch <= '9':
-            return True
-        #if ch == '.' or ch == '-' or ch == '/':
-        if special_delimiter.find(ch) != -1:
-            return True
-        if special_char.find(ch) != -1:
-            has_spacial_char = True
-    if not has_spacial_char:
-        return True
-    return False
 
 def push_message(message, labels=['faucet']):
     content = "[{}]{} {}, {}".format(env, str(labels), g_hostname, message)
@@ -136,7 +123,7 @@ def push_message(message, labels=['faucet']):
             },
             "id":1
         }
-        response = json.loads(requests.post(faucet_alert_address, data = json.dumps(body_relay), headers = headers).text)
+        json.loads(requests.post(faucet_alert_address, data = json.dumps(body_relay), headers = headers).text)
     except Exception as e:
         logger.error('push error. {}'.format(repr(e)))
 
@@ -171,6 +158,9 @@ def params_valid(account):
         return False, response_dict['bad_request'], {}
     if not owner_key:
         owner_key = active_key  
+    if not is_valid_name(name):
+        msg = response_module(response_dict['bad_request']['code'], msg="account {} illegal".format(name))
+        return False, msg, {}
     return True, '', {'name': name, 'active_key': active_key, 'owner_key': owner_key}
 
 def send_reward(core_count, account_id):
@@ -248,10 +238,16 @@ def register_account(account):
         if "error" in info:
             error = info["error"]["message"]
             logger.warn('request: {}, error: {}'.format(body_relay, error))
-            if error.find('current_account_itr == acnt_indx') == -1:
-                push_message('register account({}) failed. {}'.format(account['name'], error))
-                return False, response_dict['server_error'], ''
-            return False, response_dict['account_registered'], ''
+            if error.find('current_account_itr == acnt_indx') != -1:
+                return False, response_dict['account_registered'], ''
+            elif error.find('is_valid_name') != -1:
+                msg = response_module(response_dict['bad_request']['code'], msg="account {} illegal".format(account['name']))
+                return False, msg, ''
+            elif error.find('skip_transaction_dupe_check') != -1:
+                msg = response_module(response_dict['server_error']['code'], msg="Too many requests, please try again later")
+                return False, msg, ''
+            push_message('register account({}) failed. {}'.format(account['name'], error))
+            return False, response_dict['server_error'], ''
     except Exception as e:
         logger.error('register account failed. account: {}, error: {}'.format(account, repr(e)))
         # push_message("register account {} failed".format(account['name']))
