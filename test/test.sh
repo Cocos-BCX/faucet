@@ -1,3 +1,5 @@
+# docker cp faucet_server.py faucet:/app/faucet_server.py && docker cp utils.py  faucet:/app/utils.py 
+# docker restart faucet
 
 base_url="127.0.0.1:8041"  # local test
 #base_url="faucet.cocosbcx.net" # prod
