@@ -164,11 +164,11 @@ def params_valid(account):
     active_key = account.get('active_key', '') #获取active公钥
     owner_key = account.get('owner_key', '')   #获取owner公钥
     if not name:
-        return False, {"msg": status_text['bad_request']['text'], "code": status_text['bad_request']['code']}, {}
+        return False, response_dict['bad_request'], {}
     if not is_cheap_name(name):
-        return False, {"msg": status_text['not_cheap_account']['text'], "code": status_text['not_cheap_account']['code']}, {}
+        return False, response_dict['not_cheap_account'], {}
     if not active_key:
-        return False, {"msg": status_text['bad_request']['text'], "code": status_text['bad_request']['code']}, {}
+        return False, response_dict['bad_request'], {}
     if not owner_key:
         owner_key = active_key  
     return True, '', {'name': name, 'active_key': active_key, 'owner_key': owner_key}
@@ -250,12 +250,12 @@ def register_account(account):
             logger.warn('request: {}, error: {}'.format(body_relay, error))
             if error.find('current_account_itr == acnt_indx') == -1:
                 push_message('register account({}) failed. {}'.format(account['name'], error))
-                return False, {"msg": status_text['server_error']['text'], "code": status_text['server_error']['code']}, ''
-            return False, {"msg": status_text['account_registered']['text'], "code": status_text['account_registered']['code']}, ''
+                return False, response_dict['server_error'], ''
+            return False, response_dict['account_registered'], ''
     except Exception as e:
         logger.error('register account failed. account: {}, error: {}'.format(account, repr(e)))
         # push_message("register account {} failed".format(account['name']))
-        return False, {"msg": status_text['server_error']['text'], "code": status_text['server_error']['code']}, ''
+        return False, response_dict['server_error'], ''
     try:
         body_relay = {
             "jsonrpc": "2.0",
@@ -267,7 +267,7 @@ def register_account(account):
         account_id = account_info["result"]["id"]
     except Exception as e:
         logger.error('get account failed. account: {}, error: {}'.format(account, repr(e)))
-        return False, {"msg": status_text['server_error']['text'], "code": status_text['server_error']['code']}, 0
+        return False, response_dict['server_error'], 0
     return True, '', account_id
 
 def account_count_check(ip, date):
@@ -281,17 +281,17 @@ def account_count_check(ip, date):
         logger.debug('ip: {}, date: {}, count: {}. max_limit: {}'.format(ip, date, count, registrar_account_max))
         if has_account_max_limit and count > registrar_account_max:
             my_db.close()
-            return False, {"msg": status_text['forbidden_today_max']['text'], "code": status_text['forbidden_today_max']['code']}, 0
+            return False, response_dict['forbidden_today_max'], 0
         #ip max register check
         this_ip_count = cursor.execute(sql['ip_count'].format(ip, date))
         logger.debug('this_ip_count: {}, ip_max_limit: {}'.format(this_ip_count, ip_max_register_limit))
         if has_ip_max_limit and this_ip_count > ip_max_register_limit:
             my_db.close()
-            return False, {"msg": status_text['forbidden_ip_max']['text'], "code": status_text['forbidden_ip_max']['code']}, 0
+            return False, response_dict['forbidden_today_max'], 0
     except Exception as e:
         my_db.close()
         logger.error('db failed. ip: {}, error: {}'.format(ip, repr(e)))
-        return False, {"msg": status_text['server_error']['text'], "code": status_text['server_error']['code']}, 0
+        return False, response_dict['server_error'], 0
     my_db.close()
     return True, '', count
 
@@ -323,7 +323,7 @@ class FaucetHandler(tornado.web.RequestHandler):
     def post(self):
         auth = self.request.headers.get('authorization', '') 
         if auth not in auth_list.values():
-            return self.write({'msg': status_text['forbidden_no_auth']['text'], 'code': status_text['forbidden_no_auth']['code']})  
+            return self.write(response_dict['forbidden_no_auth'])  
         
         #ip black check
         remote_ip = self.request.remote_ip
@@ -334,7 +334,7 @@ class FaucetHandler(tornado.web.RequestHandler):
         if real_ip is None:
             real_ip = remote_ip  
         if real_ip in ip_limit_list:
-            return self.write({'msg': status_text['forbidden_no_auth']['text'], 'code': status_text['forbidden_no_auth']['code']}) 
+            return self.write(response_dict['forbidden_no_auth']) 
         
         # request params check
         data = json.loads(self.request.body.decode("utf8"))
@@ -368,7 +368,7 @@ class FaucetHandler(tornado.web.RequestHandler):
 
         #return
         del account_data['ip']
-        return self.write({'msg': 'Register successful! {}, {}'.format(account_data['name'], memo), 'data': {"account": account_data }, 'code': '200'})
+        return self.write(response_module(response_dict['ok']['code'], data={"account": account_data}, msg='Register successful! {}, {}'.format(account_data['name'], memo)))
 
 def main():
     logger.info('-------------- faucet server start ----------------')
