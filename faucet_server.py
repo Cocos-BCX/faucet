@@ -94,8 +94,11 @@ def init_db():
 def init_host_info():
     global g_hostname
     global g_ip
-    g_hostname = socket.getfqdn(socket.gethostname(  ))
-    g_ip = socket.gethostbyname(g_hostname)
+    try:
+        g_hostname = socket.getfqdn(socket.gethostname())
+        g_ip = socket.gethostbyname(g_hostname)
+    except Exception as e:
+        logger.warn('init host info. error: {}'.format(repr(e)))
     if 'HOST_NAME' in os.environ:
         g_hostname = os.environ['HOST_NAME']  
     logger.info('hostname: {}, ip: {}'.format(g_hostname, g_ip))
@@ -107,22 +110,6 @@ def initialize():
     init_reward()
     logger.info('ip_limit_list: {}'.format(ip_limit_list))
     logger.info('init done.')
-
-def is_cheap_name(name):
-    has_spacial_char = False 
-    special_char = 'aeiouy'
-    special_delimiter = '.-/'
-    for ch in name:
-        if ch >= '0' and ch <= '9':
-            return True
-        #if ch == '.' or ch == '-' or ch == '/':
-        if special_delimiter.find(ch) != -1:
-            return True
-        if special_char.find(ch) != -1:
-            has_spacial_char = True
-    if not has_spacial_char:
-        return True
-    return False
 
 def push_message(message, labels=['faucet']):
     content = "[{}]{} {}, {}".format(env, str(labels), g_hostname, message)
@@ -136,7 +123,7 @@ def push_message(message, labels=['faucet']):
             },
             "id":1
         }
-        response = json.loads(requests.post(faucet_alert_address, data = json.dumps(body_relay), headers = headers).text)
+        json.loads(requests.post(faucet_alert_address, data = json.dumps(body_relay), headers = headers).text)
     except Exception as e:
         logger.error('push error. {}'.format(repr(e)))
 
@@ -164,13 +151,16 @@ def params_valid(account):
     active_key = account.get('active_key', '') #获取active公钥
     owner_key = account.get('owner_key', '')   #获取owner公钥
     if not name:
-        return False, {'msg': 'no name', 'code': '400'}, {}
+        return False, response_dict['bad_request'], {}
     if not is_cheap_name(name):
-        return False, {'msg': 'account name {} is not cheap'.format(name), 'code': '400'}, {}
+        return False, response_dict['not_cheap_account'], {}
     if not active_key:
-        return False, {'msg': 'no active key', 'code': '400'}, {}
+        return False, response_dict['bad_request'], {}
     if not owner_key:
         owner_key = active_key  
+    if not is_valid_name(name):
+        msg = response_module(response_dict['bad_request']['code'], msg="account {} illegal".format(name))
+        return False, msg, {}
     return True, '', {'name': name, 'active_key': active_key, 'owner_key': owner_key}
 
 def send_reward(core_count, account_id):
@@ -247,14 +237,21 @@ def register_account(account):
         info = json.loads(requests.post(cli_wallet_url, data = json.dumps(body_relay), headers = headers).text)
         if "error" in info:
             error = info["error"]["message"]
-            # logger.warn('request: {}, response: {}'.format(body_relay, response))
-            if error.find('current_account_itr == acnt_indx') == -1:
-                push_message('register account({}) failed. {}'.format(account['name'], error))
-            return False, {'msg': 'register account {} failed. {}'.format(account['name'], error), 'code': '400'}, ''
+            logger.warn('request: {}, error: {}'.format(body_relay, error))
+            if error.find('current_account_itr == acnt_indx') != -1:
+                return False, response_dict['account_registered'], ''
+            elif error.find('is_valid_name') != -1:
+                msg = response_module(response_dict['bad_request']['code'], msg="account {} illegal".format(account['name']))
+                return False, msg, ''
+            elif error.find('skip_transaction_dupe_check') != -1:
+                msg = response_module(response_dict['server_error']['code'], msg="Too many requests, please try again later")
+                return False, msg, ''
+            push_message('register account({}) failed. {}'.format(account['name'], error))
+            return False, response_dict['server_error'], ''
     except Exception as e:
         logger.error('register account failed. account: {}, error: {}'.format(account, repr(e)))
         # push_message("register account {} failed".format(account['name']))
-        return False, {'msg': 'register account failed', 'code': '400'}, ''
+        return False, response_dict['server_error'], ''
     try:
         body_relay = {
             "jsonrpc": "2.0",
@@ -266,7 +263,7 @@ def register_account(account):
         account_id = account_info["result"]["id"]
     except Exception as e:
         logger.error('get account failed. account: {}, error: {}'.format(account, repr(e)))
-        return False, {"msg": "obtain user id error!", "code": 400}, ''
+        return False, response_dict['server_error'], 0
     return True, '', account_id
 
 def account_count_check(ip, date):
@@ -280,17 +277,17 @@ def account_count_check(ip, date):
         logger.debug('ip: {}, date: {}, count: {}. max_limit: {}'.format(ip, date, count, registrar_account_max))
         if has_account_max_limit and count > registrar_account_max:
             my_db.close()
-            return False, {"msg": "Up to the maximum number of accounts created today", "code": 400}, 0
+            return False, response_dict['forbidden_today_max'], 0
         #ip max register check
         this_ip_count = cursor.execute(sql['ip_count'].format(ip, date))
         logger.debug('this_ip_count: {}, ip_max_limit: {}'.format(this_ip_count, ip_max_register_limit))
         if has_ip_max_limit and this_ip_count > ip_max_register_limit:
             my_db.close()
-            return False, {"msg": "You register too many free account", "code": 400}, 0
+            return False, response_dict['forbidden_today_max'], 0
     except Exception as e:
         my_db.close()
-        # logger.error('db failed. ip: {}, error: {}'.format(ip, repr(e)))
-        return False, {"msg": "db error", "code": 400}, 0
+        logger.error('db failed. ip: {}, error: {}'.format(ip, repr(e)))
+        return False, response_dict['server_error'], 0
     my_db.close()
     return True, '', count
 
@@ -322,7 +319,7 @@ class FaucetHandler(tornado.web.RequestHandler):
     def post(self):
         auth = self.request.headers.get('authorization', '') 
         if auth not in auth_list.values():
-            return self.write({'msg': 'no access authority!', 'code': '400'})
+            return self.write(response_dict['forbidden_no_auth'])  
         
         #ip black check
         remote_ip = self.request.remote_ip
@@ -333,7 +330,7 @@ class FaucetHandler(tornado.web.RequestHandler):
         if real_ip is None:
             real_ip = remote_ip  
         if real_ip in ip_limit_list:
-            return self.write({"msg": "no access authority", "code": 400})
+            return self.write(response_dict['forbidden_no_auth']) 
         
         # request params check
         data = json.loads(self.request.body.decode("utf8"))
@@ -367,7 +364,7 @@ class FaucetHandler(tornado.web.RequestHandler):
 
         #return
         del account_data['ip']
-        return self.write({'msg': 'Register successful! {}, {}'.format(account_data['name'], memo), 'data': {"account": account_data }, 'code': '200'})
+        return self.write(response_module(response_dict['ok']['code'], data={"account": account_data}, msg='Register successful! {}, {}'.format(account_data['name'], memo)))
 
 def main():
     logger.info('-------------- faucet server start ----------------')
