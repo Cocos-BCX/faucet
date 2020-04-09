@@ -21,9 +21,9 @@ class SubFormatter(logging.Formatter):
         return s
 
 class Logging(object):
-    def __init__(self, log_dir='./logs', log_name='server', console=True):
+    def __init__(self, log_dir='./logs', log_name='server', console=True, level=logging.DEBUG):
         self.logger = logging.getLogger(log_name)
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(level)
         #formatter = logging.Formatter("%(asctime)s [%(name)s] [%(funcName)s:%(lineno)s] [%(levelname)s]: %(message)s", "%Y-%m-%d %H:%M:%S")
         formatter = SubFormatter(fmt='%(asctime)s [%(name)s] [%(funcName)s:%(lineno)s] [%(levelname)s]: %(message)s', datefmt='%Y-%m-%d %H:%M:%S.%f')
 
@@ -128,4 +128,11 @@ def is_cheap_name(name):
     if not has_spacial_char:
         return True
     return False
-    
+
+
+# status: 1~3 retry
+g_reward_retry_count = 3
+g_reward_status = {
+    "NOT_REWARD": 0,
+    "SUCCESS": g_reward_retry_count+1,
+}
