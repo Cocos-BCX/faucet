@@ -12,7 +12,7 @@
 
 ## 文件说明：
 * config.py：服务配置  
-* utils.pu: 常用工具，主要是log
+* utils.p: 常用工具，主要是log
 * faucet_server.py：水龙头服务主逻辑  
 
 ## 服务启动  
